@@ -95,6 +95,15 @@ button.loc:hover{border-color:var(--accent)}
 .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 @media (max-width:620px){ .kpis{grid-template-columns:1fr 1fr} }
 .kpi{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;min-width:0;background:var(--surface)}
+.pay{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
+.paybar{display:flex;height:14px;border-radius:99px;overflow:hidden;gap:2px;background:var(--line)}
+.paybar i{display:block;min-width:3px}
+.pc-cash{background:#8f9a55}.pc-card{background:var(--accent)}.pc-other{background:#af7e5d}
+.paylist{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.paylist>div{display:flex;flex-direction:column;min-width:0}
+.paylist b{font-size:20px;line-height:1.25;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.paylist .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+@media (max-width:620px){ .paylist{grid-template-columns:1fr 1fr} }
 .kpi.main{background:var(--tint)} .kpi.free{background:var(--warn-bg)}
 .kpi b{font-size:24px;line-height:1.25;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .up{color:var(--ok);font-weight:600} .down{color:var(--bad);font-weight:600}
@@ -158,6 +167,17 @@ tr.picked td{background:var(--tint)}
 .chips button{font:inherit;font-size:13.5px;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:6px 12px;cursor:pointer}
 .chips button.sel{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 tr.grp td{background:var(--tint);border-top:1px solid var(--line)}
+/* Fotos de artículo: cuadro gris si no hay foto o no cargó */
+.ph{flex:none;display:inline-block;width:44px;height:44px;border-radius:8px;background:#c9c9c9;overflow:hidden;vertical-align:middle;border:0;padding:0}
+.ph img{display:block;width:100%;height:100%;object-fit:cover}
+button.ph{cursor:zoom-in}
+.ph.s{width:32px;height:32px;border-radius:6px}
+.wph{display:flex;gap:10px;align-items:center;min-width:0} .wph>span:last-child{min-width:0;overflow-wrap:anywhere}
+tr.grp td .ph{margin-right:10px}
+.res button[data-pick]{display:flex;gap:10px;align-items:center;text-align:left}
+#zoom{position:fixed;inset:0;z-index:60;background:rgba(10,16,30,.86);display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;padding:16px;cursor:zoom-out}
+#zoom img{max-width:100%;max-height:82vh;border-radius:12px;background:#c9c9c9}
+#zoom span{color:#fff;font-weight:600;text-align:center}
 .item.none{cursor:default;background:var(--sunk)}
 .item.none.need{box-shadow:inset 3px 0 0 var(--bad)}
 .item .acts{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
@@ -686,6 +706,17 @@ function viewSteps(){
     return '<li><button class="' + cls + '"' + (can ? ' data-go="' + n + '"' : ' disabled') + (n === S.step ? ' aria-current="step"' : '') + '><i class="n" style="font-style:normal">' + (n < S.step ? '✓' : n) + '</i><span>' + t + '</span></button></li>';
   }).join('');
 }
+/* Foto del artículo. Solo aparece si el stock vino de Loyverse con fotos; sin foto queda el cuadro gris. zoom: se puede tocar para verla grande. */
+let _phFor = null, _phAny = false;
+const hasPhotos = () => { if (_phFor !== S.stock){ _phFor = S.stock; _phAny = false; for (const k in S.stock) if (S.stock[k].i){ _phAny = true; break; } } return _phAny; };
+const ph = (ref, zoom, small) => { if (!hasPhotos()) return ''; const it = S.stock[ref], u = it && it.i, img = u ? '<img src="' + esc(u) + '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">' : '';
+  return u && zoom ? '<button type="button" class="ph' + (small ? ' s' : '') + '" data-zoom="' + esc(ref) + '" aria-label="Ver foto de ' + esc(it.n) + '">' + img + '</button>' : '<span class="ph' + (small ? ' s' : '') + '">' + img + '</span>'; };
+const wph = (ref, html, zoom) => hasPhotos() ? '<span class="wph">' + ph(ref, zoom) + '<span>' + html + '</span></span>' : html;
+function zoomOpen(ref){ const it = S.stock[ref]; if (!it || !it.i) return; zoomClose(); const d = document.createElement('div'); d.id = 'zoom'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Foto de ' + it.n);
+  d.innerHTML = '<img src="' + esc(it.i) + '" alt="' + esc(it.n) + '" referrerpolicy="no-referrer"><span>' + esc(it.n) + '</span><button class="btn small">Cerrar</button>'; d.addEventListener('click', zoomClose); document.body.appendChild(d); }
+function zoomClose(){ const z = $('#zoom'); if (z) z.remove(); }
+document.addEventListener('click', e => { const z = e.target.closest && e.target.closest('[data-zoom]'); if (z){ e.preventDefault(); e.stopPropagation(); zoomOpen(z.dataset.zoom); } }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') zoomClose(); });
 const artCell = l => '<b>' + esc(nameOf(l)) + '</b>' + (varOf(l) ? '<br><span class="v">' + esc(varOf(l)) + '</span>' : '');
 
 /* ---------- elegir artículos a mano ---------- */
@@ -709,7 +740,7 @@ function pickList(){
   if (!rows.length) return '<p class="sub">Ningún artículo coincide.' + (pDepot ? ' Prueba a desmarcar "solo con existencias en depósito".' : '') + '</p>';
   return '<div class="tablebox"><table><thead><tr><th></th><th>Referencia</th><th>Artículo</th><th class="num">En tienda</th><th class="num">En depósito</th><th class="num">A mover</th></tr></thead><tbody>' +
     rows.slice(0, max).map(([ref, it]) => { const on = ref in pk, t = it.q[S.dest] || 0, c = it.q[S.orig] || 0, r = esc(ref);
-      return '<tr class="' + (on ? 'picked' : '') + '"><td class="ck"><input type="checkbox" id="p-' + r + '" data-pk="' + r + '"' + (on ? ' checked' : '') + ' aria-label="Elegir ' + esc(it.n + ' ' + it.v) + '"></td><td class="mono">' + r + '</td><td><b>' + esc(it.n) + '</b>' + (it.v ? '<br><span class="v">' + esc(it.v) + '</span>' : '') + '</td>' +
+      return '<tr class="' + (on ? 'picked' : '') + '"><td class="ck"><input type="checkbox" id="p-' + r + '" data-pk="' + r + '"' + (on ? ' checked' : '') + ' aria-label="Elegir ' + esc(it.n + ' ' + it.v) + '"></td><td class="mono">' + r + '</td><td>' + wph(ref, '<b>' + esc(it.n) + '</b>' + (it.v ? '<br><span class="v">' + esc(it.v) + '</span>' : ''), true) + '</td>' +
         '<td class="num">' + (t <= 0 ? '<span class="pill bad">' + t + '</span>' : t === 1 ? '<span class="pill low">1</span>' : t) + '</td><td class="num">' + (c <= 0 ? '<span class="pill bad">' + c + '</span>' : c) + '</td>' +
         '<td class="num">' + (on ? '<input class="qty' + (pk[ref] > Math.max(0, c) ? ' over' : '') + '" type="number" min="1" step="1" inputmode="numeric" id="pq-' + r + '" data-pq="' + r + '" value="' + pk[ref] + '">' : '') + '</td></tr>'; }).join('') +
     '</tbody></table></div>' + (rows.length > max ? '<p class="sub">Se muestran ' + max + ' de ' + rows.length + '. Escribe en el buscador para acotar.</p>' : '');
@@ -788,7 +819,7 @@ function packList(){
   const none = noStock().filter(l => !f || norm(nameOf(l) + ' ' + varOf(l) + ' ' + l.ref).includes(f));
   if (!list.length && !none.length) return '<p class="sub" style="padding:14px">Ningún artículo coincide con el filtro.</p>';
   return '<div class="pack-head"><span>Referencia</span><span>Artículo</span><span class="num">Cantidad</span><span class="num">En caja</span></div>' +
-    list.map(l => '<label class="item' + (l.ok ? ' on' : '') + '"><span class="ref mono">' + esc(l.ref) + '</span><span class="name">' + artCell(l) + (l.repOf ? '<br><span class="pill ok">reemplaza a ' + esc(label(l.repOf)) + '</span>' : '') + '</span>' +
+    list.map(l => '<label class="item' + (l.ok ? ' on' : '') + '"><span class="ref mono">' + esc(l.ref) + '</span><span class="name">' + wph(l.ref, artCell(l) + (l.repOf ? '<br><span class="pill ok">reemplaza a ' + esc(label(l.repOf)) + '</span>' : ''), true) + '</span>' +
       '<span class="q num">' + l.qty + '</span><input type="checkbox" id="c-' + esc(l.ref) + '" data-tick="' + esc(l.ref) + '"' + (l.ok ? ' checked' : '') + '>' +
       (S.tried && !l.ok ? '<span class="why"><input type="text" id="n-' + esc(l.ref) + '" class="' + (l.note.trim() ? '' : 'need') + '" data-note="' + esc(l.ref) + '" value="' + esc(l.note) + '" placeholder="¿Por qué no va en la caja?" aria-label="Comentario para ' + esc(nameOf(l)) + '"></span>' : '') +
       '</label>').join('') +
@@ -799,7 +830,7 @@ function packList(){
       else if (repFor === l.ref) acts = '<input type="search" id="repQ" data-repq="' + r + '" placeholder="Filtrar por nombre, modelo o referencia" autocomplete="off"><button class="btn small" data-rep="">Cancelar</button><div class="res" id="repRes">' + repResults('') + '</div>';
       else acts = '<button class="btn small" data-rep="' + r + '">Reemplazar por otro modelo</button><button class="btn small" data-gone="' + r + '">Quitar de la lista</button>' +
         '<input type="text" id="z-' + r + '" data-note="' + r + '" class="' + (S.tried && !resolved(l) ? 'need' : '') + '" value="' + esc(l.note || '') + '" placeholder="o deja un comentario, por ejemplo: no hay más" aria-label="Comentario para ' + esc(nameOf(l)) + '">';
-      return '<div class="item none' + (S.tried && !resolved(l) ? ' need' : '') + '"><span class="ref mono">' + r + '</span><span class="name">' + artCell(l) + ' <span class="pill bad">sin existencias en depósito</span><br><span class="v">Vendidos: ' + l.sold + ' · En tienda: ' + inStore + '</span></span><span class="q num">0</span><span></span><span class="acts">' + acts + '</span></div>';
+      return '<div class="item none' + (S.tried && !resolved(l) ? ' need' : '') + '"><span class="ref mono">' + r + '</span><span class="name">' + wph(l.ref, artCell(l) + ' <span class="pill bad">sin existencias en depósito</span><br><span class="v">Vendidos: ' + l.sold + ' · En tienda: ' + inStore + '</span>', true) + '</span><span class="q num">0</span><span></span><span class="acts">' + acts + '</span></div>';
     }).join('');
 }
 function repResults(q){
@@ -811,7 +842,7 @@ function repResults(q){
     (cat ? ' <button class="btn small quiet" data-repall="' + (repAll ? '0' : '1') + '">' + (repAll ? 'Volver a la categoría ' + esc(cat) : 'Buscar en todas las categorías') + '</button>' : '') + '</p>';
   if ((repAll || !cat) && f.length < 2) return head;
   if (!m.length) return head + '<p class="sub">No hay otro artículo con existencias' + (cat && !repAll ? ' en esta categoría' : '') + (f ? ' que coincida' : '') + '.</p>';
-  return head + m.slice(0, 40).map(([ref, it]) => '<button data-pick="' + esc(ref) + '"><b>' + esc(it.n) + '</b>' + (it.v ? ' · ' + esc(it.v) : '') + ' <span class="mono">' + esc(ref) + '</span> · en depósito: ' + (it.q[S.orig] || 0) + '</button>').join('') +
+  return head + m.slice(0, 40).map(([ref, it]) => '<button data-pick="' + esc(ref) + '">' + ph(ref) + '<span><b>' + esc(it.n) + '</b>' + (it.v ? ' · ' + esc(it.v) : '') + ' <span class="mono">' + esc(ref) + '</span> · en depósito: ' + (it.q[S.orig] || 0) + '</span></button>').join('') +
     (m.length > 40 ? '<p class="sub">Hay ' + (m.length - 40) + ' más. Escribe para acotar.</p>' : '');
 }
 function progress(){ const p = packing(), d = p.filter(l => l.ok).length; return {d, n:p.length, pct: p.length ? Math.round(100 * d / p.length) : 0}; }
@@ -889,6 +920,17 @@ function summarize(d, f) {
   s.upt = s.tickets ? s.units / s.tickets : null;
   s.freeUnits = 0; s.freeValue = 0;
   d.free.forEach(function (r) { if (!f.emp || r[4] === f.emp) { s.freeUnits += r[2]; s.freeValue += r[3]; } });
+  /* Medios de pago: por ticket, así que no se pueden separar por categoría. Los reembolsos restan (sin filtro de vendedor, igual que las ventas netas). */
+  s.pay = null;
+  if (d.pays && !f.cat) {
+    var py = s.pay = { cash: { n: 0, t: 0 }, card: { n: 0, t: 0 }, other: { n: 0, t: 0 }, others: [], total: 0 }, oth = {};
+    d.pays.forEach(function (r) {
+      if (f.emp ? (r[0] !== f.emp || r[5]) : false) return;
+      var x = py[r[1]] || py.other; x.n += r[3]; x.t += r[4]; py.total += r[3];
+      if (x === py.other) { var o = oth[r[2] || 'Otro'] || (oth[r[2] || 'Otro'] = { k: r[2] || 'Otro', n: 0, t: 0 }); o.n += r[3]; o.t += r[4]; }
+    });
+    py.others = Object.keys(oth).map(function (k) { return oth[k]; }).sort(function (a, b) { return b.n - a.n; });
+  }
   s.vsPrev = d.prev && d.prev.net > 0 && !f.emp && !f.cat ? 100 * (s.sales - d.prev.net) / d.prev.net : null;
   var list = function (o, by) { return Object.keys(o).map(function (k) { return o[k]; }).sort(function (a, b) { return b[by] - a[by] || (a.k < b.k ? -1 : 1); }); };
   s.list = list;
@@ -980,6 +1022,7 @@ function viewCmp(sA){
     '<div class="tablebox"><table class="cmp">' + head('Indicador') + '<tbody>' + row('Ventas netas', sA.sales, sB.sales, usd) + row('Tickets', n0(sA.tickets), n0(sB.tickets), int) + row('Ticket promedio', n0(sA.avg), n0(sB.avg), usd) + row('Unidades', sA.units, sB.units, int) + row('Unidades por ticket', n0(sA.upt), n0(sB.upt), int) + row('Descuentos', sA.disc, sB.disc, usd, false) + row('Sin cobro (unidades)', sA.freeUnits, sB.freeUnits, int, false) + '</tbody></table></div>' +
     '<div class="two"><div class="tablebox"><table class="cmp">' + head('Vendedor') + '<tbody>' + emps.map(x => row(esc(x.k), x.a, x.b, usd)).join('') + '</tbody></table></div><div class="tablebox"><table class="cmp">' + head('Categoría') + '<tbody>' + cats.map(x => row(esc(x.k), x.a, x.b, usd)).join('') + '</tbody></table></div></div></div>';
 }
+document.addEventListener('change', e => { if (e.target && e.target.id === 'dN' && rep.cfg){ cfgRead(); render(); } });
 async function cfgLoad(){ try { const j = await call({op:'reportCfgGet'}); if (j.ok){ rep.cfg = j.cfg; if (mode === 'report') render(); } } catch(e){} }
 function barChart(title, list, cls, key, val, max){
   if (!list.length) return '';
@@ -990,14 +1033,18 @@ function barChart(title, list, cls, key, val, max){
     return key ? '<button class="brow' + (rep.f[key] === x.k ? ' sel' : '') + '" data-rf="' + key + '" data-rv="' + esc(x.k) + '" title="' + esc(tip) + '">' + inner + '</button>' : '<div class="brow" title="' + esc(tip) + '">' + inner + '</div>';
   }).join('') + '</div>';
 }
+function dTimes(c){ return c.daily.times && c.daily.times.length ? c.daily.times.slice(0, 2) : [String(c.daily.hour).padStart(2,'0') + ':00']; }
 function viewCfg(){
   const c = rep.cfg; if (!c) return '<p class="sub">Cargando la configuración del envío…</p>';
   const hours = h => Array.from({length:24}, (_, i) => '<option value="' + i + '"' + (i === h ? ' selected' : '') + '>' + String(i).padStart(2,'0') + ':00</option>').join('');
-  return '<div class="cfg"><div><h3 style="margin:0;font-size:16px">Envío automático por correo</h3><p class="sub">El informe sale durante la hora elegida. Los cambios se aplican al pulsar Guardar.</p></div>' +
+  const dts = dTimes(c), quarters = v => Array.from({length:96}, (_, i) => { const t = String(i >> 2).padStart(2,'0') + ':' + String((i & 3) * 15).padStart(2,'0'); return '<option' + (t === v ? ' selected' : '') + '>' + t + '</option>'; }).join('') + (/:(00|15|30|45)$/.test(v) ? '' : '<option selected>' + esc(v) + '</option>');
+  return '<div class="cfg"><div><h3 style="margin:0;font-size:16px">Envío automático por correo</h3><p class="sub">El informe sale dentro de los 15 minutos siguientes al horario elegido. Los cambios se aplican al pulsar Guardar.</p></div>' +
     '<div class="who"><span class="label">Quién lo recibe</span>' + (c.emails.length ? c.emails.map((m, i) => '<div class="mailrow"><span style="overflow-wrap:anywhere">' + esc(m) + '</span><button class="btn small quiet" data-mdel="' + i + '">Quitar</button></div>').join('') : '<p class="note warn">No hay destinatarios: el informe no se envía.</p>') +
     '<div class="row"><input type="text" id="mailNew" class="grow" placeholder="correo@ejemplo.com" inputmode="email" autocomplete="off"><button class="btn small" data-act="mailAdd">Agregar</button></div></div>' +
     '<div class="who"><label class="row"><input type="checkbox" id="dOn"' + (c.daily.on ? ' checked' : '') + '> <b>Informe diario</b></label><div class="days">' + [1,2,3,4,5,6,0].map(d => '<label><input type="checkbox" data-dday="' + d + '"' + (c.daily.days.includes(d) ? ' checked' : '') + '>' + DOW[d].slice(0,3) + '</label>').join('') + '</div>' +
-    '<label class="row">A las <select id="dHour">' + hours(c.daily.hour) + '</select></label></div>' +
+    '<label class="row">Cuántos por día <select id="dN"><option value="1"' + (dts.length === 1 ? ' selected' : '') + '>1 informe</option><option value="2"' + (dts.length === 2 ? ' selected' : '') + '>2 informes</option></select></label>' +
+    (dts.length === 2 ? '<label class="row">Primero a las <select id="dT1">' + quarters(dts[0]) + '</select></label><label class="row">Segundo a las <select id="dT2">' + quarters(dts[1]) + '</select></label><p class="sub">Pensado para el final de cada turno. El primero trae las ventas del día hasta ese momento; el segundo, el día completo.</p>'
+      : '<label class="row">A las <select id="dT1">' + quarters(dts[0]) + '</select></label>') + '</div>' +
     '<div class="who"><label class="row"><input type="checkbox" id="wOn"' + (c.weekly.on ? ' checked' : '') + '> <b>Informe semanal</b> <span class="sub">(últimos 7 días)</span></label>' +
     '<label class="row">Los <select id="wDay">' + [1,2,3,4,5,6,0].map(d => '<option value="' + d + '"' + (d === c.weekly.day ? ' selected' : '') + '>' + DOW[d].toLowerCase() + '</option>').join('') + '</select> a las <select id="wHour">' + hours(c.weekly.hour) + '</select></label></div>' +
     '<div class="who"><b>Turnos</b><span class="sub">Se cuenta cada sesión de caja abierta en Loyverse. Si una sola sesión cubre mañana y tarde, vale dos turnos. Si Loyverse no informa sesiones, se estima con este horario.</span><label class="row">Cambio de turno a las <input type="time" id="shiftCut" value="' + esc(c.shiftCut || '14:15') + '" style="min-height:38px;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font:inherit;background:var(--surface);color:var(--ink)"></label></div>' +
@@ -1042,6 +1089,13 @@ function viewReport(){
       (filt ? '<div class="row"><span class="pill ok">Filtro: ' + esc(rep.f.emp || rep.f.cat) + '</span><button class="btn small quiet" data-act="repClear">Quitar filtro</button></div>' : '') +
       '<div class="kpis">' + kpi('main', 'Ventas netas', usd(s.sales), vs) + kpi('', 'Tickets', s.tickets == null ? '–' : s.tickets, s.units + ' unidades') + kpi('', 'Ticket promedio', s.avg == null ? '–' : usd(s.avg), s.upt == null ? '' : (Math.round(s.upt * 10) / 10) + ' unid. por ticket') +
       kpi('', 'Descuentos', usd(s.disc), Math.round(s.discPct) + '% de la venta bruta') + kpi('', 'Reembolsos', s.refunds ? usd(s.refunds.amount) : '–', s.refunds ? s.refunds.n + (s.refunds.n === 1 ? ' ticket' : ' tickets') : 'sin filtro') + kpi('free', 'Sin cobro', s.freeUnits + ' unid.', 'valor ' + usd(s.freeValue) + ', aparte') + '</div>';
+    if (s.pay && (s.pay.total || s.pay.cash.t || s.pay.card.t || s.pay.other.t)) { const p = s.pay, pos = Math.max(0, p.cash.n) + Math.max(0, p.card.n) + Math.max(0, p.other.n) || 1;
+      const seg = (x, c) => x.n > 0 ? '<i class="pc-' + c + '" style="width:' + (100 * x.n / pos) + '%"></i>' : '';
+      const item = (x, c, l) => '<div><span class="label"><i class="dot pc-' + c + '"></i>' + l + '</span><b>' + usd(x.n) + '</b><span class="sub">' + (p.total > 0 ? Math.round(100 * x.n / p.total) + '% · ' : '') + x.t + (x.t === 1 ? ' pago' : ' pagos') + '</span></div>';
+      h += '<div class="pay" id="pay"><div class="row end"><b>Cómo pagaron</b><span class="sub">Total cobrado: <b>' + usd(p.total) + '</b>' + (rep.f.emp ? ' · sin restar reembolsos' : '') + '</span></div><div class="paybar">' + seg(p.cash, 'cash') + seg(p.card, 'card') + seg(p.other, 'other') + '</div>' +
+        '<div class="paylist">' + item(p.cash, 'cash', 'Efectivo') + item(p.card, 'card', 'Tarjeta') + (p.others.length ? item(p.other, 'other', esc(p.others.length === 1 ? p.others[0].k : 'Otros medios')) : '') + '</div>' +
+        (p.others.length > 1 ? '<span class="sub">' + p.others.map(o => esc(o.k) + ' ' + usd(o.n)).join(' · ') + '</span>' : '') + '</div>'; }
+    else if (rep.f.cat && d.pays) h += '<p class="sub">El medio de pago es por ticket: quita el filtro de categoría para verlo.</p>';
     if (!d.rows.length) h += '<p class="note info">No hubo ventas cobradas en este período.</p>';
     else h += '<div class="row end"><span class="sub">Toca un vendedor o una categoría para filtrar todo el informe.</span><div class="chips"><button data-rm="n" class="' + (m === 'n' ? 'sel' : '') + '">Por dinero</button><button data-rm="u" class="' + (m === 'u' ? 'sel' : '') + '">Por unidades</button></div></div>' +
       '<div class="two">' + (nDays > 1 ? '<div style="min-width:0">' + grpChips + colChart('Ventas por ' + gName, days, 'unidades') + '</div>' : '') + (hrs.length && !rep.f.cat ? lineBars('Ventas por hora', hrs, 'tickets') : '') + '</div>' +
@@ -1060,7 +1114,12 @@ function viewReport(){
 }
 function cfgRead(){
   const c = rep.cfg; if (!c || !$('#dOn')) return c;
-  c.daily.on = $('#dOn').checked; c.daily.hour = +$('#dHour').value; c.daily.days = [...document.querySelectorAll('[data-dday]')].filter(x => x.checked).map(x => +x.dataset.dday);
+  c.daily.on = $('#dOn').checked;
+  { const n = +$('#dN').value, t1 = $('#dT1').value, t2 = $('#dT2') ? $('#dT2').value : null, cut = c.shiftCut || '14:15'; let ts;
+    if (n === 1) ts = [t2 || t1];                                   // al pasar de 2 a 1 queda el del cierre
+    else if (t2) ts = t1 === t2 ? [t1] : [t1, t2];
+    else ts = cut < t1 ? [cut, t1] : [t1, t1 < '19:30' ? '19:30' : '23:45'];   // al pasar de 1 a 2 propone el fin del turno mañana
+    c.daily.times = Array.from(new Set(ts)).sort(); c.daily.hour = +c.daily.times[c.daily.times.length - 1].slice(0, 2); } c.daily.days = [...document.querySelectorAll('[data-dday]')].filter(x => x.checked).map(x => +x.dataset.dday);
   c.weekly.on = $('#wOn').checked; c.weekly.day = +$('#wDay').value; c.weekly.hour = +$('#wHour').value;
   c.hours = {from: +$('#hFrom').value, to: Math.max(+$('#hFrom').value, +$('#hTo').value)}; c.shiftCut = $('#shiftCut').value || '14:15';
   return c;
@@ -1097,7 +1156,7 @@ function existList(){
   if (!names.length) return '<p class="sub">Ningún artículo coincide.</p>';
   const cell = (it, q) => !tracked(it) ? '<span class="sub">sin control</span>' : q <= 0 ? '<span class="pill bad">' + q + '</span>' : q === 1 ? '<span class="pill low">1</span>' : String(q);
   return '<p class="sub">' + names.length + ' artículos · ' + refs + ' referencias</p><div class="tablebox"><table><thead><tr><th>Referencia</th><th>Variante</th><th class="num">' + esc(alias(d)) + '</th><th class="num">' + esc(alias(other)) + '</th><th class="num">Precio</th><th class="num">Coste</th></tr></thead><tbody>' +
-    names.map(n => '<tr class="grp"><td colspan="6"><b>' + esc(n) + '</b>' + (groups[n][0][1].c ? ' <span class="sub">· ' + esc(groups[n][0][1].c) + '</span>' : '') + '</td></tr>' +
+    names.map(n => '<tr class="grp"><td colspan="6">' + ph(groups[n][0][0], true) + '<b>' + esc(n) + '</b>' + (groups[n][0][1].c ? ' <span class="sub">· ' + esc(groups[n][0][1].c) + '</span>' : '') + '</td></tr>' +
       groups[n].sort((a, b) => a[0].localeCompare(b[0], 'es', {numeric:true})).map(([ref, it]) => '<tr><td class="mono">' + esc(ref) + '</td><td>' + esc(it.v || '–') + '</td><td class="num">' + cell(it, it.q[d] || 0) + '</td><td class="num">' + cell(it, it.q[other] || 0) + '</td><td class="num">' + money(it.p) + '</td><td class="num">' + money(it.k) + '</td></tr>').join('')).join('') +
     '</tbody></table></div>';
 }
