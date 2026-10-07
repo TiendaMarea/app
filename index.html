@@ -1118,6 +1118,7 @@ function viewExist(){
 function render(){
   viewStock(); viewTabs(); viewHist();
   const flow = mode === 'transfer' && !!S.tid;
+  $('#stock').hidden = mode !== 'transfer';
   $('#steps').hidden = !flow; $('#hist').hidden = mode !== 'transfer';
   if (mode === 'home'){ $('#panel').innerHTML = viewHome(); return; }
   if (mode === 'stock'){ $('#panel').innerHTML = viewExist(); return; }
