@@ -1058,7 +1058,7 @@ function cashBox(d){
   const usd = x => 'USD ' + fmtM(x);
   return '<div class="cash"><h3 style="margin:6px 0 0;font-size:16px">Estado de caja</h3>' + d.cash.map(r => { const open = !r[3], dif = open || r[10] == null ? null : Math.round((r[10] - r[9]) * 100) / 100;
     const mv = r[11].map(m => '<li>' + (/OUT/i.test(m[0]) ? 'Salida ' : 'Entrada ') + usd(m[1]) + (m[2] ? ': ' + esc(m[2]) : '') + '</li>').join('');
-    return '<div class="cashc"><div class="row end"><b>' + esc(r[0]) + (r[1] && r[1] !== r[0] ? ' <span class="sub">· cerró ' + esc(r[1]) + '</span>' : '') + '</b><span class="sub">' + tDay(r[2]) + ' · ' + tHM(r[2]) + (open ? ' · <span class="pill ok">abierta</span>' : '–' + tHM(r[3])) + '</span></div>' +
+    return '<div class="cashc"><div class="row"><b>' + tDay(r[2]) + ' · ' + tHM(r[2]) + (open ? '</b> <span class="pill ok">abierta</span>' : '–' + tHM(r[3]) + '</b>') + '</div>' +
       '<div class="nums"><div><span class="label">Esperado</span><b>' + usd(r[9]) + '</b></div><div><span class="label">Contado</span><b>' + (r[10] == null ? '–' : usd(r[10])) + '</b></div><div class="' + (dif == null ? '' : dif === 0 ? 'good' : 'bad') + '"><span class="label">Diferencia</span><b>' + (dif == null ? (open ? 'abierta' : '–') : (dif > 0 ? '+' : '') + fmtM(dif)) + '</b></div></div>' +
       '<span class="sub">Inicial ' + usd(r[4]) + ' · ventas en efectivo +' + fmtM(r[5]) + (r[6] ? ' · reembolsos −' + fmtM(r[6]) : '') + (r[7] ? ' · entradas +' + fmtM(r[7]) : '') + (r[8] ? ' · salidas −' + fmtM(r[8]) : '') + '</span>' +
       (mv ? '<ul class="sub" style="margin:0;padding-left:18px">' + mv + '</ul>' : '') + '</div>'; }).join('') + '</div>';
@@ -1360,7 +1360,8 @@ document.addEventListener('drop', e => {
 
 S = load();
 if (S.tid && !TR[S.tid]) storeT();
-if (S.tid) mode = 'transfer';
+// Siempre arranca en el menú; las transferencias abiertas quedan guardadas y se retoman desde Transferencias.
+if (S.tid){ closeT(); saveLocal(); }
 if (Q.v === 'informe' && lvOn()) mode = 'report';
 if (Q.v === 'stock'){ mode = 'stock'; sDepot = Q.d === 'orig' ? S.orig : S.dest; sFilter = ['one','zero','low'].includes(Q.f) ? Q.f : 'all'; }
 render(); viewSync();
