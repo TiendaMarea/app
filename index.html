@@ -1047,7 +1047,10 @@ const tHM = iso => new Date(iso).toLocaleTimeString('es', {hour:'2-digit', minut
 const tDay = iso => new Date(iso).toLocaleDateString('es', {weekday:'short', day:'numeric', month:'numeric'});
 function liveBox(d){
   if (!d.live) return '';
-  if (!d.live.length) return '<div class="live off"><span><span class="dotl"></span><b>Caja cerrada</b></span><span class="sub">Nadie tiene un turno abierto en Loyverse ahora.</span></div>';
+  const inf = d.liveInfo || {}, rc = inf.recent, today = tDay(new Date().toISOString()), when = iso => (tDay(iso) !== today ? tDay(iso) + ' ' : '') + tHM(iso);
+  if (!d.live.length && rc) return '<div class="live"><span><span class="dotl"></span><b>Turno en curso: ' + esc(rc.emps.length > 1 ? rc.emps.join(', ') : rc.emp) + '</b></span><span>última venta ' + when(rc.at) + ' · ' + rc.n + (rc.n === 1 ? ' ticket' : ' tickets') + ' · efectivo cobrado USD ' + fmtM(rc.cash) + '</span>' +
+    '<span class="sub" style="color:inherit;flex-basis:100%">Contado ' + (inf.last ? 'desde el último cierre de caja (' + when(inf.last[0]) + (inf.last[1] ? ', ' + esc(inf.last[1]) : '') + ')' : 'desde el inicio del día') + '. Loyverse informa el turno recién al cerrarlo: ahí aparecen el inicial, el esperado y lo contado.</span></div>';
+  if (!d.live.length) return '<div class="live off"><span><span class="dotl"></span><b>Caja cerrada</b></span><span class="sub">' + (inf.last ? 'Último cierre: ' + when(inf.last[0]) + (inf.last[1] ? ' (' + esc(inf.last[1]) + ')' : '') + '. ' : '') + 'Sin ventas desde entonces.</span></div>';
   return d.live.map(r => '<div class="live"><span><span class="dotl"></span><b>En turno ahora: ' + esc(r[0]) + '</b></span><span>desde las ' + tHM(r[2]) + (tDay(r[2]) !== tDay(new Date().toISOString()) ? ' del ' + tDay(r[2]) : '') + ' · efectivo esperado en caja USD ' + fmtM(r[9]) + '</span></div>').join('');
 }
 function cashBox(d){
@@ -1113,7 +1116,7 @@ function viewReport(){
       (rep.mailOpen ? '<div class="cfg"><label class="who"><span class="label">Enviar a (separa varios correos con coma)</span><input type="text" id="mailTo" value="' + esc(rep.cfg ? rep.cfg.emails.join(', ') : '') + '" inputmode="email" autocomplete="off"></label><div class="row"><button class="btn primary small" data-act="mailSend">Enviar ahora</button><button class="btn small quiet" data-act="mailOpen">Cancelar</button></div><p class="sub">Se envía el informe de estas fechas completo, sin el filtro ni la comparación de la pantalla.</p></div>' : '') +
       (rep.mailMsg ? '<p class="note ok">' + esc(rep.mailMsg) + '</p>' : '') +
       (filt ? '<div class="row"><span class="pill ok">Filtro: ' + esc(rep.f.emp || rep.f.cat) + '</span><button class="btn small quiet" data-act="repClear">Quitar filtro</button></div>' : '') +
-      liveBox(d) + '<div class="kpis">' + kpi('main', 'Ventas netas', usd(s.sales), vs) + kpi('', 'Tickets', s.tickets == null ? '–' : s.tickets, s.units + ' unidades') + kpi('', 'Ticket promedio', s.avg == null ? '–' : usd(s.avg), s.upt == null ? '' : (Math.round(s.upt * 10) / 10) + ' unid. por ticket') +
+      '<div class="kpis">' + kpi('main', 'Ventas netas', usd(s.sales), vs) + kpi('', 'Tickets', s.tickets == null ? '–' : s.tickets, s.units + ' unidades') + kpi('', 'Ticket promedio', s.avg == null ? '–' : usd(s.avg), s.upt == null ? '' : (Math.round(s.upt * 10) / 10) + ' unid. por ticket') +
       kpi('', 'Descuentos', usd(s.disc), Math.round(s.discPct) + '% de la venta bruta') + kpi('', 'Reembolsos', s.refunds ? usd(s.refunds.amount) : '–', s.refunds ? s.refunds.n + (s.refunds.n === 1 ? ' ticket' : ' tickets') : 'sin filtro') + kpi('free', 'Sin cobro', s.freeUnits + ' unid.', 'valor ' + usd(s.freeValue) + ', aparte') + '</div>';
     if (s.pay && (s.pay.total || s.pay.cash.t || s.pay.card.t || s.pay.other.t)) { const p = s.pay, pos = Math.max(0, p.cash.n) + Math.max(0, p.card.n) + Math.max(0, p.other.n) || 1;
       const seg = (x, c) => x.n > 0 ? '<i class="pc-' + c + '" style="width:' + (100 * x.n / pos) + '%"></i>' : '';
