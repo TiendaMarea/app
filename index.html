@@ -104,6 +104,14 @@ button.loc:hover{border-color:var(--accent)}
 .paylist b{font-size:20px;line-height:1.25;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .paylist .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
 @media (max-width:620px){ .paylist{grid-template-columns:1fr 1fr} }
+.live{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;border-radius:var(--r);padding:10px 12px;background:var(--ok-bg);color:var(--ok)}
+.live .dotl{width:10px;height:10px;border-radius:50%;background:currentColor;display:inline-block;margin-right:6px}
+.live.off{background:var(--sunk);color:var(--muted)}
+.cash{display:flex;flex-direction:column;gap:8px}
+.cashc{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;background:var(--surface);display:flex;flex-direction:column;gap:6px}
+.cashc .nums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.cashc .nums div{display:flex;flex-direction:column;min-width:0} .cashc .nums b{font-size:18px;font-variant-numeric:tabular-nums}
+.cashc .nums .bad b{color:var(--bad)} .cashc .nums .good b{color:var(--ok)}
 .kpi.main{background:var(--tint)} .kpi.free{background:var(--warn-bg)}
 .kpi b{font-size:24px;line-height:1.25;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .up{color:var(--ok);font-weight:600} .down{color:var(--bad);font-weight:600}
@@ -1034,6 +1042,24 @@ function barChart(title, list, cls, key, val, max){
   }).join('') + '</div>';
 }
 function dTimes(c){ return c.daily.times && c.daily.times.length ? c.daily.times.slice(0, 2) : [String(c.daily.hour).padStart(2,'0') + ':00']; }
+/* Caja: quién la tiene abierta ahora y el estado de cada sesión del período (datos de Loyverse). */
+const tHM = iso => new Date(iso).toLocaleTimeString('es', {hour:'2-digit', minute:'2-digit', hour12:false});
+const tDay = iso => new Date(iso).toLocaleDateString('es', {weekday:'short', day:'numeric', month:'numeric'});
+function liveBox(d){
+  if (!d.live) return '';
+  if (!d.live.length) return '<div class="live off"><span><span class="dotl"></span><b>Caja cerrada</b></span><span class="sub">Nadie tiene un turno abierto en Loyverse ahora.</span></div>';
+  return d.live.map(r => '<div class="live"><span><span class="dotl"></span><b>En turno ahora: ' + esc(r[0]) + '</b></span><span>desde las ' + tHM(r[2]) + (tDay(r[2]) !== tDay(new Date().toISOString()) ? ' del ' + tDay(r[2]) : '') + ' · efectivo esperado en caja USD ' + fmtM(r[9]) + '</span></div>').join('');
+}
+function cashBox(d){
+  if (!d.cash || !d.cash.length) return d.cash ? '' : '';
+  const usd = x => 'USD ' + fmtM(x);
+  return '<div class="cash"><h3 style="margin:6px 0 0;font-size:16px">Estado de caja</h3>' + d.cash.map(r => { const open = !r[3], dif = open || r[10] == null ? null : Math.round((r[10] - r[9]) * 100) / 100;
+    const mv = r[11].map(m => '<li>' + (/OUT/i.test(m[0]) ? 'Salida ' : 'Entrada ') + usd(m[1]) + (m[2] ? ': ' + esc(m[2]) : '') + '</li>').join('');
+    return '<div class="cashc"><div class="row end"><b>' + esc(r[0]) + (r[1] && r[1] !== r[0] ? ' <span class="sub">· cerró ' + esc(r[1]) + '</span>' : '') + '</b><span class="sub">' + tDay(r[2]) + ' · ' + tHM(r[2]) + (open ? ' · <span class="pill ok">abierta</span>' : '–' + tHM(r[3])) + '</span></div>' +
+      '<div class="nums"><div><span class="label">Esperado</span><b>' + usd(r[9]) + '</b></div><div><span class="label">Contado</span><b>' + (r[10] == null ? '–' : usd(r[10])) + '</b></div><div class="' + (dif == null ? '' : dif === 0 ? 'good' : 'bad') + '"><span class="label">Diferencia</span><b>' + (dif == null ? (open ? 'abierta' : '–') : (dif > 0 ? '+' : '') + fmtM(dif)) + '</b></div></div>' +
+      '<span class="sub">Inicial ' + usd(r[4]) + ' · ventas en efectivo +' + fmtM(r[5]) + (r[6] ? ' · reembolsos −' + fmtM(r[6]) : '') + (r[7] ? ' · entradas +' + fmtM(r[7]) : '') + (r[8] ? ' · salidas −' + fmtM(r[8]) : '') + '</span>' +
+      (mv ? '<ul class="sub" style="margin:0;padding-left:18px">' + mv + '</ul>' : '') + '</div>'; }).join('') + '</div>';
+}
 function viewCfg(){
   const c = rep.cfg; if (!c) return '<p class="sub">Cargando la configuración del envío…</p>';
   const hours = h => Array.from({length:24}, (_, i) => '<option value="' + i + '"' + (i === h ? ' selected' : '') + '>' + String(i).padStart(2,'0') + ':00</option>').join('');
@@ -1087,7 +1113,7 @@ function viewReport(){
       (rep.mailOpen ? '<div class="cfg"><label class="who"><span class="label">Enviar a (separa varios correos con coma)</span><input type="text" id="mailTo" value="' + esc(rep.cfg ? rep.cfg.emails.join(', ') : '') + '" inputmode="email" autocomplete="off"></label><div class="row"><button class="btn primary small" data-act="mailSend">Enviar ahora</button><button class="btn small quiet" data-act="mailOpen">Cancelar</button></div><p class="sub">Se envía el informe de estas fechas completo, sin el filtro ni la comparación de la pantalla.</p></div>' : '') +
       (rep.mailMsg ? '<p class="note ok">' + esc(rep.mailMsg) + '</p>' : '') +
       (filt ? '<div class="row"><span class="pill ok">Filtro: ' + esc(rep.f.emp || rep.f.cat) + '</span><button class="btn small quiet" data-act="repClear">Quitar filtro</button></div>' : '') +
-      '<div class="kpis">' + kpi('main', 'Ventas netas', usd(s.sales), vs) + kpi('', 'Tickets', s.tickets == null ? '–' : s.tickets, s.units + ' unidades') + kpi('', 'Ticket promedio', s.avg == null ? '–' : usd(s.avg), s.upt == null ? '' : (Math.round(s.upt * 10) / 10) + ' unid. por ticket') +
+      liveBox(d) + '<div class="kpis">' + kpi('main', 'Ventas netas', usd(s.sales), vs) + kpi('', 'Tickets', s.tickets == null ? '–' : s.tickets, s.units + ' unidades') + kpi('', 'Ticket promedio', s.avg == null ? '–' : usd(s.avg), s.upt == null ? '' : (Math.round(s.upt * 10) / 10) + ' unid. por ticket') +
       kpi('', 'Descuentos', usd(s.disc), Math.round(s.discPct) + '% de la venta bruta') + kpi('', 'Reembolsos', s.refunds ? usd(s.refunds.amount) : '–', s.refunds ? s.refunds.n + (s.refunds.n === 1 ? ' ticket' : ' tickets') : 'sin filtro') + kpi('free', 'Sin cobro', s.freeUnits + ' unid.', 'valor ' + usd(s.freeValue) + ', aparte') + '</div>';
     if (s.pay && (s.pay.total || s.pay.cash.t || s.pay.card.t || s.pay.other.t)) { const p = s.pay, pos = Math.max(0, p.cash.n) + Math.max(0, p.card.n) + Math.max(0, p.other.n) || 1;
       const seg = (x, c) => x.n > 0 ? '<i class="pc-' + c + '" style="width:' + (100 * x.n / pos) + '%"></i>' : '';
@@ -1096,6 +1122,7 @@ function viewReport(){
         '<div class="paylist">' + item(p.cash, 'cash', 'Efectivo') + item(p.card, 'card', 'Tarjeta') + (p.others.length ? item(p.other, 'other', esc(p.others.length === 1 ? p.others[0].k : 'Otros medios')) : '') + '</div>' +
         (p.others.length > 1 ? '<span class="sub">' + p.others.map(o => esc(o.k) + ' ' + usd(o.n)).join(' · ') + '</span>' : '') + '</div>'; }
     else if (rep.f.cat && d.pays) h += '<p class="sub">El medio de pago es por ticket: quita el filtro de categoría para verlo.</p>';
+    h += cashBox(d);
     if (!d.rows.length) h += '<p class="note info">No hubo ventas cobradas en este período.</p>';
     else h += '<div class="row end"><span class="sub">Toca un vendedor o una categoría para filtrar todo el informe.</span><div class="chips"><button data-rm="n" class="' + (m === 'n' ? 'sel' : '') + '">Por dinero</button><button data-rm="u" class="' + (m === 'u' ? 'sel' : '') + '">Por unidades</button></div></div>' +
       '<div class="two">' + (nDays > 1 ? '<div style="min-width:0">' + grpChips + colChart('Ventas por ' + gName, days, 'unidades') + '</div>' : '') + (hrs.length && !rep.f.cat ? lineBars('Ventas por hora', hrs, 'tickets') : '') + '</div>' +

@@ -1,5 +1,5 @@
 // Guarda la app en el dispositivo para que abra sin internet. Los datos no pasan por aquí.
-const CACHE = 'marea-admin-67debb28f2';
+const CACHE = 'marea-admin-0be1f6e291';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 self.addEventListener('install', e => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
