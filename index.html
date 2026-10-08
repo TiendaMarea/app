@@ -978,8 +978,8 @@ const DOW = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado
 const fmtM = x => { const v = Math.round(x * 100) / 100; return v.toLocaleString('es', {minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2}); };
 function repRange(){
   const d0 = x => { const d = new Date(); d.setDate(d.getDate() - x); d.setHours(0,0,0,0); return d; }, now = new Date();
-  if (rep.range === 'hoy') return [d0(0), now, d0(7), new Date(now - 7 * 864e5)];
-  if (rep.range === 'ayer') return [d0(1), new Date(d0(0) - 1), d0(8), new Date(d0(7) - 1)];
+  if (rep.range === 'hoy') return [d0(0), now, d0(1), new Date(now - 864e5)];          // contra ayer, hasta la misma hora
+  if (rep.range === 'ayer') return [d0(1), new Date(d0(0) - 1), d0(2), new Date(d0(1) - 1)];   // contra anteayer
   if (rep.range === 'semana') return [d0(6), now, d0(13), new Date(now - 7 * 864e5)];
   const a = new Date((rep.from || today()) + 'T00:00:00'), b0 = new Date((rep.to || today()) + 'T23:59:59.999'), b = b0 > now ? now : b0, sh = Math.round((b0 - a + 1) / 864e5) * 864e5;
   return [a, b, new Date(a - sh), new Date(b - sh)];
