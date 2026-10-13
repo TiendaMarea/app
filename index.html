@@ -182,6 +182,9 @@ button.ph{cursor:zoom-in}
 .ph.s{width:32px;height:32px;border-radius:6px}
 .wph{display:flex;gap:10px;align-items:center;min-width:0} .wph>span:last-child{min-width:0;overflow-wrap:anywhere}
 tr.grp td .ph{margin-right:10px}
+.sug{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
+.sugrow{display:flex;gap:10px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding-top:6px}
+.sugrow>.wph,.sugrow>b{min-width:0;flex:1}
 .res button[data-pick]{display:flex;gap:10px;align-items:center;text-align:left}
 #zoom{position:fixed;inset:0;z-index:60;background:rgba(10,16,30,.86);display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;padding:16px;cursor:zoom-out}
 #zoom img{max-width:100%;max-height:82vh;border-radius:12px;background:#c9c9c9}
@@ -618,6 +621,27 @@ function addLine(ref){
   save(); render(); say('Agregado: ' + it.n + (it.v ? ' (' + it.v + ')' : '') + '. Cantidad ' + S.lines.find(x => x.ref === ref).qty + '.', 'ok');
 }
 const addBox = () => '<div class="addbox"><label class="who"><span class="label">Agregar otro artículo a la caja</span><input type="search" id="addQ" placeholder="Buscar por nombre o referencia" autocomplete="off"></label><div id="addRes"></div></div>';
+/* Sugerencias: artículos que quedan 1 en la tienda, con existencias en el depósito y que todavía no están en la caja. */
+let sugOpen = false, sugQ = '';
+function sugRows(){
+  const inBox = new Set(S.lines.map(l => l.ref)), f = norm(sugQ);
+  return Object.entries(S.stock).filter(([ref, it]) => it.t !== false && (it.q[S.dest] || 0) === 1 && (it.q[S.orig] || 0) > 0 && !inBox.has(ref) && (!f || norm(it.n + ' ' + it.v + ' ' + ref + ' ' + (it.c || '')).includes(f)))
+    .sort((a, b) => a[1].n.localeCompare(b[1].n, 'es', {numeric:true}) || a[0].localeCompare(b[0], 'es', {numeric:true}));
+}
+function sugList(){
+  const rows = sugRows(), max = 80;
+  if (!rows.length) return '<p class="sub">' + (sugQ ? 'Ninguna sugerencia coincide.' : 'No hay otros artículos con 1 en tienda y existencias en el depósito.') + '</p>';
+  return rows.slice(0, max).map(([ref, it]) => '<div class="sugrow">' + wph(ref, '<b>' + esc(it.n) + '</b>' + (it.v ? ' · ' + esc(it.v) : '') + '<br><span class="sub"><span class="mono">' + esc(ref) + '</span> · en tienda 1 · en depósito ' + (it.q[S.orig] || 0) + '</span>', true) + '<button class="btn small" data-add="' + esc(ref) + '">Agregar</button></div>').join('') +
+    (rows.length > max ? '<p class="sub">Se muestran ' + max + ' de ' + rows.length + '. Escribe para acotar.</p>' : '');
+}
+function sugBox(){
+  if (!S.sales || S.sales.manual) return '';
+  const n = sugRows().length;
+  if (!sugOpen) return '<div class="row"><button class="btn" data-act="sugOpen">Sugerencias: quedan 1 en tienda (' + (sugQ ? '…' : n) + ')</button><span class="sub">De paso, revisa qué más conviene reponer.</span></div>';
+  return '<div class="sug"><div class="row end"><b>Sugerencias: quedan 1 en ' + esc(alias(S.dest)) + '</b><span class="row"><button class="btn small quiet" data-act="sugAll">Agregar todas las de la lista</button><button class="btn small" data-act="sugClose">Cerrar</button></span></div>' +
+    '<input type="search" id="sugQ" value="' + esc(sugQ) + '" placeholder="Filtrar por artículo, referencia o categoría" autocomplete="off">' +
+    '<div id="sugRes" style="display:flex;flex-direction:column;gap:6px">' + sugList() + '</div></div>';
+}
 function addResults(q){
   const f = norm(q); if (f.length < 2) return '';
   const m = Object.entries(S.stock).filter(([ref, it]) => norm(it.n + ' ' + it.v + ' ' + ref).includes(f)).sort((a, b) => (b[1].q[S.orig] || 0) - (a[1].q[S.orig] || 0)).slice(0, 8);
@@ -815,7 +839,7 @@ function view2(){
     main.map(l => '<tr><td class="mono">' + esc(l.ref) + '</td><td>' + artCell(l) + (have(l) <= 0 ? ' <span class="pill bad">sin existencias en depósito</span>' : '') + (l.added ? ' <span class="pill ok">agregado</span>' : '') + '</td><td class="num">' + (l.sold || '–') + '</td><td class="num">' + qOf(l.ref, S.dest) + '</td><td class="num">' + have(l) + '</td>' +
       '<td class="num"><input class="qty' + (l.qty > Math.max(0, have(l)) ? ' over' : '') + '" type="number" min="0" step="1" inputmode="numeric" id="q-' + esc(l.ref) + '" data-qty="' + esc(l.ref) + '" value="' + l.qty + '" aria-label="Cantidad a mover de ' + esc(nameOf(l)) + ' ' + esc(varOf(l)) + '"></td></tr>').join('') +
     '</tbody></table></div>' : '<p class="note warn">No hay artículos vendidos que estén en el stock.</p>') +
-    addBox() +
+    addBox() + sugBox() +
     (rest.length ? '<details><summary>' + rest.length + ' vendidos que no están en el stock cargado</summary><div class="tablebox"><table><thead><tr><th>Referencia</th><th>Artículo</th><th class="num">Vendidos</th></tr></thead><tbody>' +
     rest.map(l => '<tr><td class="mono">' + esc(l.ref) + '</td><td>' + esc(l.name) + '</td><td class="num">' + l.sold + '</td></tr>').join('') +
     '</tbody></table></div></details>' : '') +
@@ -869,7 +893,7 @@ function view3(){
     '<input type="search" id="filter" placeholder="Filtrar por artículo o referencia" value="' + esc(filter) + '" aria-label="Filtrar por artículo">' +
     '<div class="pack" id="pack">' + packList() + '</div>' +
     '<label class="who"><span class="label">Quién preparó la caja</span><input type="text" id="who" value="' + esc(S.who || deviceWho()) + '" placeholder="Nombre" autocomplete="name" maxlength="60"></label>' +
-    addBox() +
+    addBox() + sugBox() +
     '<div class="row end"><button class="btn" data-go="2">Volver</button><button class="btn primary" data-act="ok3">Confirmar caja</button></div>';
 }
 function view4(){
@@ -1045,7 +1069,7 @@ function viewCmp(sA){
     '<div class="two"><div class="tablebox"><table class="cmp">' + head('Vendedor') + '<tbody>' + emps.map(x => row(esc(x.k), x.a, x.b, usd)).join('') + '</tbody></table></div><div class="tablebox"><table class="cmp">' + head('Categoría') + '<tbody>' + cats.map(x => row(esc(x.k), x.a, x.b, usd)).join('') + '</tbody></table></div></div></div>';
 }
 document.addEventListener('change', e => { if (e.target && e.target.id === 'dN' && rep.cfg){ cfgRead(); render(); } });
-async function cfgLoad(){ try { const j = await call({op:'reportCfgGet'}); if (j.ok){ rep.cfg = j.cfg; if (mode === 'report') render(); } } catch(e){} }
+async function cfgLoad(){ try { const j = await call({op:'reportCfgGet'}); if (j.ok){ rep.cfg = j.cfg; rep.tick = j.tick || null; if (mode === 'report') render(); } } catch(e){} }
 function barChart(title, list, cls, key, val, max){
   if (!list.length) return '';
   const top = Math.max(...list.map(x => x[rep.metric] || 0), 0.0001), m = rep.metric;
@@ -1077,6 +1101,17 @@ function cashBox(d){
       '<span class="sub">Inicial ' + usd(r[4]) + ' · ventas en efectivo +' + fmtM(r[5]) + (r[6] ? ' · reembolsos −' + fmtM(r[6]) : '') + (r[7] ? ' · entradas +' + fmtM(r[7]) : '') + (r[8] ? ' · salidas −' + fmtM(r[8]) : '') + '</span>' +
       (mv ? '<ul class="sub" style="margin:0;padding-left:18px">' + mv + '</ul>' : '') + '</div>'; }).join('') + '</div>';
 }
+/* Estado del envío automático: qué hizo el reloj en sus últimos chequeos. */
+function tickBox(){
+  const t = rep.tick; if (!t) return '';
+  const ago = iso => { const m = Math.round((Date.now() - new Date(iso)) / 6e4); return m < 1 ? 'recién' : m < 60 ? 'hace ' + m + ' min' : m < 1440 ? 'hace ' + Math.round(m / 60) + ' h' : 'hace ' + Math.round(m / 1440) + ' días'; };
+  const last = t.log[0], stale = !last || Date.now() - new Date(last[0]) > 40 * 6e4;
+  let h = '<details class="who"' + (stale || t.triggers === 0 ? ' open' : '') + '><summary><b>Estado del envío automático</b> · ' + (last ? 'último chequeo ' + ago(last[0]) : 'sin chequeos registrados') + '</summary>';
+  if (t.triggers === 0) h += '<p class="note bad">No hay reloj activo para el envío automático. Toca <b>Guardar</b> para crearlo.</p>';
+  else if (stale) h += '<p class="note warn">El reloj no registró chequeos en los últimos 40 minutos. Si sigue así, en Apps Script elige la función <b>autorizar</b> y tócala en Ejecutar.</p>';
+  h += t.log.length ? '<ul class="sub" style="margin:4px 0 0;padding-left:18px">' + t.log.map(r => '<li>' + tDay(r[0]) + ' ' + tHM(r[0]) + ': ' + esc(r[1]) + (r[2] > 1 ? ' <span class="sub">(×' + r[2] + ')</span>' : '') + '</li>').join('') + '</ul>' : '<p class="sub">Todavía no hay registros: aparecen después del próximo chequeo (cada 15 minutos).</p>';
+  return h + '</details>';
+}
 function viewCfg(){
   const c = rep.cfg; if (!c) return '<p class="sub">Cargando la configuración del envío…</p>';
   const hours = h => Array.from({length:24}, (_, i) => '<option value="' + i + '"' + (i === h ? ' selected' : '') + '>' + String(i).padStart(2,'0') + ':00</option>').join('');
@@ -1093,7 +1128,7 @@ function viewCfg(){
     '<div class="who"><b>Turnos</b><span class="sub">Se cuenta cada sesión de caja abierta en Loyverse. Si una sola sesión cubre mañana y tarde, vale dos turnos. Si Loyverse no informa sesiones, se estima con este horario.</span><label class="row">Cambio de turno a las <input type="time" id="shiftCut" value="' + esc(c.shiftCut || '14:15') + '" style="min-height:38px;border:1px solid var(--line);border-radius:7px;padding:6px 9px;font:inherit;background:var(--surface);color:var(--ink)"></label></div>' +
     '<div class="who"><b>Gráfico de ventas por hora</b><label class="row">Desde las <select id="hFrom">' + hours((c.hours || {from:9}).from) + '</select> hasta las <select id="hTo">' + hours((c.hours || {to:20}).to) + '</select></label><span class="sub">Si hay ventas fuera de ese horario, el gráfico se amplía para mostrarlas.</span></div>' +
     '<div class="row"><button class="btn primary" data-act="cfgSave">Guardar</button><button class="btn" data-act="sendD">Enviar el diario ahora</button><button class="btn" data-act="sendW">Enviar el semanal ahora</button></div>' +
-    (rep.cfgMsg ? '<p class="note ok">' + esc(rep.cfgMsg) + '</p>' : '') + '</div>';
+    (rep.cfgMsg ? '<p class="note ok">' + esc(rep.cfgMsg) + '</p>' : '') + tickBox() + '</div>';
 }
 function viewReport(){
   const chip = (v, l) => '<button data-rr="' + v + '" class="' + (rep.range === v ? 'sel' : '') + '">' + l + '</button>';
@@ -1300,8 +1335,11 @@ document.addEventListener('click', e => {
   if (a === 'mailSend'){ const to = $('#mailTo').value.trim(); if (!to){ say('Escribe al menos un correo.', 'bad'); return; } busyBtn(b, 'Enviando…', async () => { const j = await call({op:'reportSend', kind:'custom', from:rep.data.from, to:rep.data.to, emails:to}); if (!j.ok) throw new Error(j.error || 'No se pudo enviar.'); rep.mailOpen = false; rep.mailMsg = 'Informe enviado a ' + j.sent + ' destinatario' + (j.sent > 1 ? 's' : '') + '.'; render(); }); return; }
   if (a === 'repClear'){ cfgRead(); rep.f = {}; render(); return; }
   if (a === 'repAllItems'){ cfgRead(); rep.all = !rep.all; render(); return; }
+  if (a === 'sugOpen'){ sugOpen = true; render(); const x = $('.sug'); if (x) x.scrollIntoView({block:'start'}); return; }
+  if (a === 'sugClose'){ sugOpen = false; sugQ = ''; render(); return; }
+  if (a === 'sugAll'){ const rows = sugRows().slice(0, 80); if (!rows.length) return; for (const [ref, it] of rows) S.lines.push({ref, name:it.n, sold:0, qty:1, ok:false, note:'', added:true}); sortLines(S.lines); save(); render(); say('Agregadas ' + rows.length + (rows.length === 1 ? ' sugerencia' : ' sugerencias') + ' con cantidad 1.', 'ok'); return; }
   if (a === 'mailAdd'){ const v = $('#mailNew').value.trim(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)){ say('Ese correo no parece válido.', 'bad'); return; } cfgRead(); if (!rep.cfg.emails.includes(v)) rep.cfg.emails.push(v); rep.cfgMsg = ''; render(); return; }
-  if (a === 'cfgSave'){ const c = cfgRead(); busyBtn(b, 'Guardando…', async () => { const j = await call({op:'reportCfgSet', cfg:c}); if (!j.ok) throw new Error(j.error || 'No se pudo guardar.'); rep.cfg = j.cfg; rep.cfgMsg = 'Guardado. ' + (j.cfg.emails.length ? 'Lo reciben ' + j.cfg.emails.length + ' persona' + (j.cfg.emails.length > 1 ? 's' : '') + '.' : 'Sin destinatarios, no se envía.'); render(); }); return; }
+  if (a === 'cfgSave'){ const c = cfgRead(); busyBtn(b, 'Guardando…', async () => { const j = await call({op:'reportCfgSet', cfg:c}); if (!j.ok) throw new Error(j.error || 'No se pudo guardar.'); rep.cfg = j.cfg; if (j.tick) rep.tick = j.tick; rep.cfgMsg = 'Guardado. ' + (j.cfg.emails.length ? 'Lo reciben ' + j.cfg.emails.length + ' persona' + (j.cfg.emails.length > 1 ? 's' : '') + '.' : 'Sin destinatarios, no se envía.'); render(); }); return; }
   if (a === 'sendD' || a === 'sendW'){ const c = cfgRead(); busyBtn(b, 'Enviando…', async () => { const s1 = await call({op:'reportCfgSet', cfg:c}); if (!s1.ok) throw new Error(s1.error || 'No se pudo guardar.'); rep.cfg = s1.cfg; const j = await call({op:'reportSend', kind: a === 'sendW' ? 'weekly' : 'daily'}); if (!j.ok) throw new Error(j.error || 'No se pudo enviar.'); rep.cfgMsg = 'Enviado a ' + j.sent + ' destinatario' + (j.sent > 1 ? 's' : '') + '. Revisa la bandeja de entrada.'; render(); }); return; }
   if (a === 'lvStock'){ busyBtn(b, 'Leyendo Loyverse…', () => lvStock()); return; }
   if (a === 'lvSales'){ const f = $('#dFrom').value, t = $('#dTo').value; busyBtn(b, 'Leyendo Loyverse…', () => lvSales(f, t)); return; }
@@ -1344,6 +1382,7 @@ document.addEventListener('input', e => {
   else if (t.dataset.pq != null){ const q = Math.max(1, Math.round(num(t.value)) || 1); picks()[t.dataset.pq] = q; t.classList.toggle('over', q > Math.max(0, qOf(t.dataset.pq, S.orig))); $('#pSum').textContent = pickSum(); S.lines = null; save(); }
   else if (t.id === 'repQ'){ $('#repRes').innerHTML = repResults(t.value); }
   else if (t.id === 'addQ'){ $('#addRes').innerHTML = addResults(t.value); }
+  else if (t.id === 'sugQ'){ sugQ = t.value; $('#sugRes').innerHTML = sugList(); }
   else if (t.id === 'sq'){ sQuery = t.value; $('#exList').innerHTML = existList(); }
   else if (t.id === 'who'){ S.who = t.value; t.classList.remove('need'); try { localStorage.setItem(KEYW, t.value); } catch(e){} save(); }
   else if (t.id === 'filter'){ filter = t.value; $('#pack').innerHTML = packList(); }
