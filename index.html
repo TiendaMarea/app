@@ -332,7 +332,7 @@ function zipStore(files){
   for (const a of all){ out.set(a, p); p += a.length; }
   return out;
 }
-function buildXlsx(rows, widths, bold){
+function buildXlsx(rows, widths, bold, freeze = 4){   // freeze: cuántas filas de arriba quedan fijas
   const x = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'');
   const L = i => String.fromCharCode(65 + i);
   const body = rows.map((r, ri) => '<row r="' + (ri+1) + '">' + r.map((v, ci) => {
@@ -350,7 +350,7 @@ function buildXlsx(rows, widths, bold){
     {name:'xl/workbook.xml', text: X + '<workbook xmlns="' + M + '" xmlns:r="' + R + '"><sheets><sheet name="Control" sheetId="1" r:id="rId1"/></sheets></workbook>'},
     {name:'xl/_rels/workbook.xml.rels', text: X + '<Relationships xmlns="' + P + 'relationships"><Relationship Id="rId1" Type="' + R + '/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="' + R + '/styles" Target="styles.xml"/></Relationships>'},
     {name:'xl/styles.xml', text: X + '<styleSheet xmlns="' + M + '"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs></styleSheet>'},
-    {name:'xl/worksheets/sheet1.xml', text: X + '<worksheet xmlns="' + M + '"><sheetViews><sheetView workbookViewId="0"><pane ySplit="4" topLeftCell="A5" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' + cols + '<sheetData>' + body + '</sheetData></worksheet>'}
+    {name:'xl/worksheets/sheet1.xml', text: X + '<worksheet xmlns="' + M + '"><sheetViews><sheetView workbookViewId="0"><pane ySplit="' + freeze + '" topLeftCell="A' + (freeze + 1) + '" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' + cols + '<sheetData>' + body + '</sheetData></worksheet>'}
   ]);
 }
 
@@ -1265,7 +1265,7 @@ function countName(ext){ const slug = x => norm(x).replace(/[^a-z0-9]+/g, '-').r
 function countExport(kind){
   const rows = countRows(); if (!rows.length){ say('No hay artículos con este filtro.', 'bad'); return; }
   if (kind === 'csv') saveFile(countName('csv'), '\uFEFF' + [COUNT_HEAD, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n', 'text/csv;charset=utf-8');
-  else saveFile(countName('xlsx'), buildXlsx([COUNT_HEAD, ...rows], [16, 40, 22, 10, 16, 14, 16], [0]), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  else saveFile(countName('xlsx'), buildXlsx([COUNT_HEAD, ...rows], [16, 40, 22, 10, 16, 14, 16], [0], 1), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   say('Planilla de conteo: ' + rows.length + (rows.length === 1 ? ' referencia.' : ' referencias.'), 'ok');
 }
 let countAll = false, countOpen = false;
