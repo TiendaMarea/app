@@ -182,6 +182,7 @@ button.ph{cursor:zoom-in}
 .ph.s{width:32px;height:32px;border-radius:6px}
 .wph{display:flex;gap:10px;align-items:center;min-width:0} .wph>span:last-child{min-width:0;overflow-wrap:anywhere}
 tr.grp td .ph{margin-right:10px}
+.cnt td,.cnt th{white-space:nowrap} .cnt .blank{display:inline-block;width:56px;height:18px;border:1px dashed var(--line);border-radius:4px;vertical-align:middle}
 .sug{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;background:var(--surface);display:flex;flex-direction:column;gap:8px}
 .sugrow{display:flex;gap:10px;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding-top:6px}
 .sugrow>.wph,.sugrow>b{min-width:0;flex:1}
@@ -528,6 +529,7 @@ function readStock(text, file){
   const iRef = col(H,'ref','sku'), iName = col(H,'nombre','name'), iHandle = col(H,'handle');
   const inv = []; raw.forEach((h,i) => { const m = /^\s*(?:en inventario|in stock)\s*\[(.+)\]\s*$/i.exec(h); if (m) inv.push([i, m[1].trim()]); });
   const opts = H.map((h,i) => /^(opcion|option) \d (valor|value)$/.test(h) ? i : -1).filter(i => i >= 0);
+  const optN = H.map((h,i) => /^(opcion|option) \d (nombre|name)$/.test(h) ? i : -1).filter(i => i >= 0); let lastON = [];
   if (iRef < 0 || !inv.length) throw new Error('Este archivo no trae las columnas REF y "En inventario [...]". Descárgalo en Loyverse desde Artículos → Exportar.');
   const iCat = col(H,'categoria','category'), iPrice = col(H,'precio por defecto','default price'), iCost = col(H,'coste','cost'), iTrack = col(H,'seguir el inventario','track stock');
   let lastH = null, lastN = '', lastC = '', lastT = '', n = 0;
@@ -535,6 +537,7 @@ function readStock(text, file){
     const ref = (r[iRef] || '').trim(); if (!ref) continue;
     const handle = iHandle >= 0 ? r[iHandle] : ref;
     let name = iName >= 0 ? (r[iName] || '').trim().normalize('NFC') : '';
+    if (name){ lastON = optN.map(i => (r[i] || '').trim()); }
     if (name){ lastH = handle; lastN = name; lastC = iCat >= 0 ? (r[iCat] || '').trim() : ''; lastT = iTrack >= 0 ? (r[iTrack] || '').trim() : ''; } else if (handle === lastH) name = lastN;
     const it = S.stock[ref] || (S.stock[ref] = {n:'', v:'', q:{}});
     if (name) it.n = name;
@@ -542,6 +545,7 @@ function readStock(text, file){
     if (iPrice >= 0) it.p = /^-?[\d.,]+$/.test((r[iPrice] || '').trim()) ? num(r[iPrice]) : null;
     if (iCost >= 0) it.k = /^-?[\d.,]+$/.test((r[iCost] || '').trim()) ? num(r[iCost]) : null;
     it.v = opts.map(i => (r[i] || '').trim()).filter(Boolean).join(' / ');
+    delete it.s; delete it.co; opts.forEach((i, k) => { const val = (r[i] || '').trim(), nm = lastON[k] || ''; if (!val) return; if (/tall|size/i.test(nm)) it.s = val; else if (/colou?r/i.test(nm)) it.co = val; });
     for (const [i, loc] of inv) it.q[loc] = (r[i] || '').trim() === '' ? 0 : num(r[i]);
     n++;
   }
@@ -918,7 +922,7 @@ function view4(){
     ((rec.none || []).length ? '<details><summary>' + rec.none.length + ' vendidos sin existencias en depósito (no repuestos)</summary><div class="tablebox"><table><thead><tr><th>Referencia</th><th>Artículo</th><th class="num">Vendidos</th></tr></thead><tbody>' + rec.none.map(r => '<tr><td class="mono">' + esc(r[0]) + '</td><td>' + art(r) + (r[4] ? '<br><span class="v">' + esc(r[4]) + '</span>' : '') + '</td><td class="num">' + r[3] + '</td></tr>').join('') + '</tbody></table></div></details>' : '') +
     '<div class="row end"><button class="btn" data-act="undo">Deshacer y volver a editar la caja</button><button class="btn primary" data-act="new">Cerrar esta transferencia</button></div>';
 }
-let mode = 'home', sDepot = null, sFilter = 'all', sQuery = '';
+let mode = 'home', sDepot = null, sFilter = 'all', sQuery = '', sCat = '';
 const tracked = it => it.t !== false;
 const depot = () => sDepot && S.locs.includes(sDepot) ? sDepot : S.dest;
 const isF = (it, q, f) => f === 'all' || (tracked(it) && (f === 'one' ? q === 1 : f === 'low' ? q <= 1 : q <= 0));
@@ -1068,7 +1072,7 @@ function viewCmp(sA){
     '<div class="tablebox"><table class="cmp">' + head('Indicador') + '<tbody>' + row('Ventas netas', sA.sales, sB.sales, usd) + row('Tickets', n0(sA.tickets), n0(sB.tickets), int) + row('Ticket promedio', n0(sA.avg), n0(sB.avg), usd) + row('Unidades', sA.units, sB.units, int) + row('Unidades por ticket', n0(sA.upt), n0(sB.upt), int) + row('Descuentos', sA.disc, sB.disc, usd, false) + row('Sin cobro (unidades)', sA.freeUnits, sB.freeUnits, int, false) + '</tbody></table></div>' +
     '<div class="two"><div class="tablebox"><table class="cmp">' + head('Vendedor') + '<tbody>' + emps.map(x => row(esc(x.k), x.a, x.b, usd)).join('') + '</tbody></table></div><div class="tablebox"><table class="cmp">' + head('Categoría') + '<tbody>' + cats.map(x => row(esc(x.k), x.a, x.b, usd)).join('') + '</tbody></table></div></div></div>';
 }
-document.addEventListener('change', e => { if (e.target && e.target.id === 'dN' && rep.cfg){ cfgRead(); render(); } });
+document.addEventListener('change', e => { if (e.target && e.target.id === 'dN' && rep.cfg){ cfgRead(); render(); } if (e.target && e.target.id === 'sCat'){ sCat = e.target.value; render(); } });
 async function cfgLoad(){ try { const j = await call({op:'reportCfgGet'}); if (j.ok){ rep.cfg = j.cfg; rep.tick = j.tick || null; if (mode === 'report') render(); } } catch(e){} }
 function barChart(title, list, cls, key, val, max){
   if (!list.length) return '';
@@ -1228,6 +1232,7 @@ function existList(){
   for (const ref in S.stock){
     const it = S.stock[ref], q = it.q[d] || 0;
     if (!isF(it, q, sFilter)) continue;
+    if (sCat && (it.c || '') !== sCat) continue;
     if (f && !norm(it.n + ' ' + it.v + ' ' + ref + ' ' + (it.c || '')).includes(f)) continue;
     (groups[it.n] || (groups[it.n] = [])).push([ref, it]); refs++;
   }
@@ -1238,6 +1243,45 @@ function existList(){
     names.map(n => '<tr class="grp"><td colspan="6">' + ph(groups[n][0][0], true) + '<b>' + esc(n) + '</b>' + (groups[n][0][1].c ? ' <span class="sub">· ' + esc(groups[n][0][1].c) + '</span>' : '') + '</td></tr>' +
       groups[n].sort((a, b) => a[0].localeCompare(b[0], 'es', {numeric:true})).map(([ref, it]) => '<tr><td class="mono">' + esc(ref) + '</td><td>' + esc(it.v || '–') + '</td><td class="num">' + cell(it, it.q[d] || 0) + '</td><td class="num">' + cell(it, it.q[other] || 0) + '</td><td class="num">' + money(it.p) + '</td><td class="num">' + money(it.k) + '</td></tr>').join('')).join('') +
     '</tbody></table></div>';
+}
+/* Planilla de conteo: lo que se ve en Existencias (depósito, filtro, categoría y búsqueda), con una columna vacía para anotar lo contado. */
+function talleColor(it){
+  if (it.s != null || it.co != null) return [it.s || '', it.co || ''];
+  const p = (it.v || '').split(' / ');   // stock viejo, sin nombres de opción: primero talle, después color
+  return [p[0] || '', p[1] || ''];
+}
+function countRows(){
+  const d = depot(), f = norm(sQuery), out = [];
+  for (const ref in S.stock){
+    const it = S.stock[ref], q = it.q[d] || 0;
+    if (!tracked(it) || !isF(it, q, sFilter) || (sCat && (it.c || '') !== sCat)) continue;
+    if (f && !norm(it.n + ' ' + it.v + ' ' + ref + ' ' + (it.c || '')).includes(f)) continue;
+    const [ta, co] = talleColor(it); out.push([ref, it.n, it.c || '', ta, co, q, '']);
+  }
+  return out.sort((a, b) => a[1].localeCompare(b[1], 'es', {numeric:true}) || a[0].localeCompare(b[0], 'es', {numeric:true}));
+}
+const COUNT_HEAD = ['REF', 'NOMBRE', 'ARTICULO', 'TALLE', 'COLOR', 'STOCK ACTUAL', 'STOCK CONTADO'];
+function countName(ext){ const slug = x => norm(x).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); return 'conteo_' + slug(alias(depot())) + (sCat ? '_' + slug(sCat) : '') + '_' + today() + '.' + ext; }
+function countExport(kind){
+  const rows = countRows(); if (!rows.length){ say('No hay artículos con este filtro.', 'bad'); return; }
+  if (kind === 'csv') saveFile(countName('csv'), '\uFEFF' + [COUNT_HEAD, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n', 'text/csv;charset=utf-8');
+  else saveFile(countName('xlsx'), buildXlsx([COUNT_HEAD, ...rows], [16, 40, 22, 10, 16, 14, 16], [0]), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  say('Planilla de conteo: ' + rows.length + (rows.length === 1 ? ' referencia.' : ' referencias.'), 'ok');
+}
+let countAll = false;
+function countPreview(rows){
+  if (!rows.length) return '<p class="sub">No hay artículos con este filtro.</p>';
+  const show = countAll ? rows : rows.slice(0, 10);
+  return '<div class="tablebox"><table class="cnt"><thead><tr>' + COUNT_HEAD.map((h, i) => '<th' + (i >= 5 ? ' class="num"' : '') + '>' + h + '</th>').join('') + '</tr></thead><tbody>' +
+    show.map(r => '<tr>' + r.map((v, i) => '<td' + (i === 0 ? ' class="mono"' : i >= 5 ? ' class="num"' : '') + '>' + (i === 6 ? '<span class="blank"></span>' : esc(v)) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>' +
+    (rows.length > 10 ? '<button class="btn small quiet" data-act="countAll">' + (countAll ? 'Ver solo las primeras 10' : 'Ver las ' + rows.length + ' filas') + '</button>' : '');
+}
+function countBox(){
+  const rows = countRows(), n = rows.length;
+  return '<div class="sug" id="countBox"><div class="row end"><b>Planilla para contar stock</b><span class="sub">' + esc(alias(depot())) + (sCat ? ' · ' + esc(sCat) : '') + (sQuery ? ' · "' + esc(sQuery) + '"' : '') + ' · <span id="countN">' + n + '</span> referencias</span></div>' +
+    '<span class="sub">Usa el depósito, la categoría, el filtro y la búsqueda de arriba. Columnas: REF, nombre, artículo (categoría), talle, color, stock actual y una columna vacía para el stock contado.</span>' +
+    '<span class="label">Vista previa</span>' + countPreview(rows) +
+    '<div class="row"><button class="btn primary" data-act="countCsv">Descargar CSV</button><button class="btn" data-act="countXlsx">Descargar Excel</button></div></div>';
 }
 function viewExist(){
   const d = depot();
@@ -1250,7 +1294,9 @@ function viewExist(){
     '<div class="row"><div class="chips">' + chip('data-depot', S.orig, esc(alias(S.orig)), d === S.orig) + chip('data-depot', S.dest, esc(alias(S.dest)), d === S.dest) + '</div>' +
     '<div class="chips">' + chip('data-sf', 'all', 'Todos', sFilter === 'all') + chip('data-sf', 'one', 'Queda 1', sFilter === 'one') + chip('data-sf', 'zero', 'En cero', sFilter === 'zero') + chip('data-sf', 'low', '1, 0 o negativo', sFilter === 'low') + '</div></div>' +
     (d === S.dest && sFilter !== 'all' ? '<div class="row"><button class="btn primary" data-act="toTransfer">Armar una transferencia con estos</button><span class="sub">Abre la selección de artículos con este mismo filtro.</span></div>' : '') +
-    '<input type="search" id="sq" placeholder="Buscar por artículo, referencia o categoría" value="' + esc(sQuery) + '" aria-label="Buscar en existencias">' +
+    '<div class="row"><input type="search" id="sq" class="grow" placeholder="Buscar por artículo, referencia o categoría" value="' + esc(sQuery) + '" aria-label="Buscar en existencias">' +
+    '<select id="sCat" aria-label="Categoría"><option value="">Todas las categorías</option>' + Array.from(new Set(Object.values(S.stock).map(it => it.c || '').filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es')).map(c => '<option' + (c === sCat ? ' selected' : '') + '>' + esc(c) + '</option>').join('') + '</select></div>' +
+    countBox() +
     '<div id="exList" style="display:flex;flex-direction:column;gap:8px">' + existList() + '</div>';
 }
 function render(){
@@ -1335,6 +1381,8 @@ document.addEventListener('click', e => {
   if (a === 'mailSend'){ const to = $('#mailTo').value.trim(); if (!to){ say('Escribe al menos un correo.', 'bad'); return; } busyBtn(b, 'Enviando…', async () => { const j = await call({op:'reportSend', kind:'custom', from:rep.data.from, to:rep.data.to, emails:to}); if (!j.ok) throw new Error(j.error || 'No se pudo enviar.'); rep.mailOpen = false; rep.mailMsg = 'Informe enviado a ' + j.sent + ' destinatario' + (j.sent > 1 ? 's' : '') + '.'; render(); }); return; }
   if (a === 'repClear'){ cfgRead(); rep.f = {}; render(); return; }
   if (a === 'repAllItems'){ cfgRead(); rep.all = !rep.all; render(); return; }
+  if (a === 'countAll'){ countAll = !countAll; const cn = $('#countBox'); if (cn) cn.outerHTML = countBox(); return; }
+  if (a === 'countCsv' || a === 'countXlsx'){ countExport(a === 'countCsv' ? 'csv' : 'xlsx'); return; }
   if (a === 'sugOpen'){ sugOpen = true; render(); const x = $('.sug'); if (x) x.scrollIntoView({block:'start'}); return; }
   if (a === 'sugClose'){ sugOpen = false; sugQ = ''; render(); return; }
   if (a === 'sugAll'){ const rows = sugRows().slice(0, 80); if (!rows.length) return; for (const [ref, it] of rows) S.lines.push({ref, name:it.n, sold:0, qty:1, ok:false, note:'', added:true}); sortLines(S.lines); save(); render(); say('Agregadas ' + rows.length + (rows.length === 1 ? ' sugerencia' : ' sugerencias') + ' con cantidad 1.', 'ok'); return; }
@@ -1383,7 +1431,7 @@ document.addEventListener('input', e => {
   else if (t.id === 'repQ'){ $('#repRes').innerHTML = repResults(t.value); }
   else if (t.id === 'addQ'){ $('#addRes').innerHTML = addResults(t.value); }
   else if (t.id === 'sugQ'){ sugQ = t.value; $('#sugRes').innerHTML = sugList(); }
-  else if (t.id === 'sq'){ sQuery = t.value; $('#exList').innerHTML = existList(); }
+  else if (t.id === 'sq'){ sQuery = t.value; $('#exList').innerHTML = existList(); const cn = $('#countBox'); if (cn) cn.outerHTML = countBox(); }
   else if (t.id === 'who'){ S.who = t.value; t.classList.remove('need'); try { localStorage.setItem(KEYW, t.value); } catch(e){} save(); }
   else if (t.id === 'filter'){ filter = t.value; $('#pack').innerHTML = packList(); }
   else if (t.dataset.note != null){
