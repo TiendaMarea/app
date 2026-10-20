@@ -1268,7 +1268,7 @@ function countExport(kind){
   else saveFile(countName('xlsx'), buildXlsx([COUNT_HEAD, ...rows], [16, 40, 22, 10, 16, 14, 16], [0]), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   say('Planilla de conteo: ' + rows.length + (rows.length === 1 ? ' referencia.' : ' referencias.'), 'ok');
 }
-let countAll = false;
+let countAll = false, countOpen = false;
 function countPreview(rows){
   if (!rows.length) return '<p class="sub">No hay artículos con este filtro.</p>';
   const show = countAll ? rows : rows.slice(0, 10);
@@ -1277,8 +1277,9 @@ function countPreview(rows){
     (rows.length > 10 ? '<button class="btn small quiet" data-act="countAll">' + (countAll ? 'Ver solo las primeras 10' : 'Ver las ' + rows.length + ' filas') + '</button>' : '');
 }
 function countBox(){
+  if (!countOpen) return '<div id="countBox"><button class="btn" data-act="countOpen">Planillas para conteo de stock</button></div>';
   const rows = countRows(), n = rows.length;
-  return '<div class="sug" id="countBox"><div class="row end"><b>Planilla para contar stock</b><span class="sub">' + esc(alias(depot())) + (sCat ? ' · ' + esc(sCat) : '') + (sQuery ? ' · "' + esc(sQuery) + '"' : '') + ' · <span id="countN">' + n + '</span> referencias</span></div>' +
+  return '<div class="sug" id="countBox"><div class="row end"><b>Planilla para contar stock</b><button class="btn small" data-act="countClose">Cerrar</button></div><span class="sub">' + esc(alias(depot())) + (sCat ? ' · ' + esc(sCat) : '') + (sQuery ? ' · "' + esc(sQuery) + '"' : '') + ' · <span id="countN">' + n + '</span> referencias</span>' +
     '<span class="sub">Usa el depósito, la categoría, el filtro y la búsqueda de arriba. Columnas: REF, nombre, artículo (categoría), talle, color, stock actual y una columna vacía para el stock contado.</span>' +
     '<span class="label">Vista previa</span>' + countPreview(rows) +
     '<div class="row"><button class="btn primary" data-act="countCsv">Descargar CSV</button><button class="btn" data-act="countXlsx">Descargar Excel</button></div></div>';
@@ -1381,6 +1382,7 @@ document.addEventListener('click', e => {
   if (a === 'mailSend'){ const to = $('#mailTo').value.trim(); if (!to){ say('Escribe al menos un correo.', 'bad'); return; } busyBtn(b, 'Enviando…', async () => { const j = await call({op:'reportSend', kind:'custom', from:rep.data.from, to:rep.data.to, emails:to}); if (!j.ok) throw new Error(j.error || 'No se pudo enviar.'); rep.mailOpen = false; rep.mailMsg = 'Informe enviado a ' + j.sent + ' destinatario' + (j.sent > 1 ? 's' : '') + '.'; render(); }); return; }
   if (a === 'repClear'){ cfgRead(); rep.f = {}; render(); return; }
   if (a === 'repAllItems'){ cfgRead(); rep.all = !rep.all; render(); return; }
+  if (a === 'countOpen' || a === 'countClose'){ countOpen = a === 'countOpen'; const cn = $('#countBox'); if (cn) cn.outerHTML = countBox(); if (countOpen) $('#countBox').scrollIntoView({block:'start'}); return; }
   if (a === 'countAll'){ countAll = !countAll; const cn = $('#countBox'); if (cn) cn.outerHTML = countBox(); return; }
   if (a === 'countCsv' || a === 'countXlsx'){ countExport(a === 'countCsv' ? 'csv' : 'xlsx'); return; }
   if (a === 'sugOpen'){ sugOpen = true; render(); const x = $('.sug'); if (x) x.scrollIntoView({block:'start'}); return; }
