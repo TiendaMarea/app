@@ -421,6 +421,15 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 function setSync(st){ sync.st = st; if (st === 'ok') sync.at = new Date(); viewSync(); }
 function schedule(ms){ clearTimeout(syncTimer); syncTimer = setTimeout(syncNow, ms == null ? 2000 : ms); }
 function queue(op){ if (syncUrl()){ M.ops.push(op); saveMeta(); } }
+/* Antigüedad del stock: es una foto de Loyverse del momento en que se trajo; las ventas posteriores no aparecen hasta volver a traerlo. */
+function stockAge(){
+  if (typeof S === 'undefined' || !S.stock || !Object.keys(S.stock).length || !S.stockAt || !S.stockAt.at) return '';
+  const m = Math.max(0, Math.round((Date.now() - new Date(S.stockAt.at)) / 6e4)), old = m > 30;
+  const txt = m < 1 ? 'recién' : m < 60 ? 'hace ' + m + ' min' : m < 1440 ? 'hace ' + Math.floor(m / 60) + ' h' + (m % 60 >= 10 && m < 600 ? ' ' + (m % 60) + ' min' : '') : 'hace ' + Math.floor(m / 1440) + (m < 2880 ? ' día' : ' días');
+  return '<span class="pill ' + (old ? 'warn' : 'ok') + '" title="Las ventas hechas después no aparecen hasta volver a traer el stock">Stock de Loyverse: ' + txt + (S.stockAt.file === 'Loyverse, automático' ? ' (automático)' : '') + '</span>' +
+    (old && syncUrl() && !IN_CLAUDE ? '<button class="btn small" data-act="lvStock">Actualizar stock</button>' : '');
+}
+setInterval(() => { try { if (!document.hidden) viewSync(); } catch(e){} }, 60000);
 function viewSync(){
   const el = $('#sync'); if (!el) return;
   if (IN_CLAUDE || LOCAL_ONLY){ el.innerHTML = ''; return; }
@@ -430,9 +439,10 @@ function viewSync(){
     return;
   }
   const n = pendingN();
-  const t = {ok:['ok', 'Datos compartidos al día' + (sync.at ? ' · ' + sync.at.toLocaleTimeString('es', {hour:'2-digit', minute:'2-digit'}) : '')],
+  const t = {ok:['ok', 'Sincronizado entre dispositivos' + (sync.at ? ' · ' + sync.at.toLocaleTimeString('es', {hour:'2-digit', minute:'2-digit'}) : '')],
     saving:['warn', 'Guardando…'], idle:['warn', 'Conectando…'], offline:['bad', 'Sin conexión']}[sync.st];
-  el.innerHTML = '<span class="pill ' + t[0] + '">' + t[1] + '</span>' +
+  const pend = (S.history || []).filter(h => h.imp === false).length;
+  el.innerHTML = '<span class="pill ' + t[0] + '">' + t[1] + '</span>' + stockAge() + (pend ? '<span class="pill warn" title="Confirmadas en el programa y todavía sin marcar como importadas en Loyverse">' + pend + (pend === 1 ? ' transferencia sin importar en Loyverse' : ' transferencias sin importar en Loyverse') + '</span>' : '') +
     (sync.st === 'offline' ? '<span class="sub">' + (n ? 'Hay ' + n + (n === 1 ? ' cambio guardado' : ' cambios guardados') + ' solo en este dispositivo. Se envían al volver internet.' : 'Ves los últimos datos que este dispositivo recibió.') + (sync.err ? ' (' + esc(sync.err) + ')' : '') + '</span>' : '') +
     (BAKED.indexOf('http') === 0 ? '' : '<button class="btn quiet" data-act="disconnect">Desconectar</button>');
 }
@@ -665,7 +675,7 @@ function confirmBox(){
     sent: p.filter(l => l.ok).map(l => [l.ref, nameOf(l), varOf(l), l.qty, l.repOf ? 'Reemplaza a ' + label(l.repOf) : '']),
     miss: p.filter(l => !l.ok).map(l => [l.ref, nameOf(l), varOf(l), l.qty, l.note.trim()]),
     none: noStock().map(l => [l.ref, nameOf(l), varOf(l), l.sold, l.rep ? 'Reemplazado por ' + label(l.rep) : (l.note || '').trim()])};
-  rec.tid = S.tid;
+  rec.tid = S.tid; if (syncUrl() && !IN_CLAUDE) rec.imp = false;
   move(rec, 1); for (const r of rec.sent){ r[5] = qOf(r[0], rec.orig); r[6] = qOf(r[0], rec.dest); }
   S.history.unshift(rec); S.history = S.history.slice(0, 60);
   S.last = {at:rec.at, who:rec.who}; S.applied = true; S.recAt = rec.at;
@@ -732,7 +742,7 @@ function viewHist(){
   const h = S.history.filter(r => !(S.applied && r.at === S.recAt));
   $('#hist').innerHTML = !h.length ? '' : '<details><summary>Transferencias anteriores (' + h.length + ')</summary><div class="tablebox"><table><thead><tr><th>Fecha</th><th>Preparó</th><th class="num">Artículos</th><th class="num">Unidades</th><th>Archivos</th></tr></thead><tbody>' +
     h.map(r => '<tr><td>' + fmtDate(r.at) + '</td><td>' + esc(r.who) + '</td><td class="num">' + r.sent.length + '</td><td class="num">' + units(r.sent) + '</td>' +
-      '<td><button class="btn quiet" data-dl="csv" data-at="' + esc(r.at) + '">Loyverse</button><button class="btn quiet" data-dl="xlsx" data-at="' + esc(r.at) + '">Control</button>' + (r.ctrl ? '<a class="btn quiet" href="' + esc(r.ctrl) + '" target="_blank" rel="noopener">Drive</a>' : '') + '</td></tr>').join('') +
+      '<td>' + (r.imp === false ? '<button class="btn small" data-imp="1" data-at="' + esc(r.at) + '" title="Marcar como importada en Loyverse">Sin importar · marcar</button>' : '') + '<button class="btn quiet" data-dl="csv" data-at="' + esc(r.at) + '">Loyverse</button><button class="btn quiet" data-dl="xlsx" data-at="' + esc(r.at) + '">Control</button>' + (r.ctrl ? '<a class="btn quiet" href="' + esc(r.ctrl) + '" target="_blank" rel="noopener">Drive</a>' : '') + '</td></tr>').join('') +
     '</tbody></table></div></details>';
 }
 function viewSteps(){
@@ -900,6 +910,11 @@ function view3(){
     addBox() + sugBox() +
     '<div class="row end"><button class="btn" data-go="2">Volver</button><button class="btn primary" data-act="ok3">Confirmar caja</button></div>';
 }
+function impBox(rec){
+  if (rec.imp === undefined) return '';
+  if (rec.imp === false) return '<div class="note warn"><b>Falta que entre en Loyverse.</b> Mientras tanto, el programa la suma encima del stock que trae de Loyverse, para que no se pierda. Cuando la aceptes en Loyverse, el programa lo detecta solo en la siguiente actualización del stock (el stock de ' + esc(alias(rec.orig)) + ' baja en esas cantidades). Si no lo detecta, márcala a mano:<div class="row" style="margin-top:8px"><button class="btn primary" data-imp="1" data-at="' + esc(rec.at) + '">Ya la importé en Loyverse</button></div></div>';
+  return '<p class="note ok">' + (rec.impAuto ? 'Ya entró en Loyverse (detectado solo el ' : 'Importada en Loyverse (marcada el ') + fmtDate(rec.imp) + '). <button class="btn small quiet" data-imp="0" data-at="' + esc(rec.at) + '">Desmarcar</button></p>';
+}
 function view4(){
   const rec = S.history.find(h => h.at === S.recAt) || S.history[0], s = rec.sent, m = rec.miss;
   const art = r => '<b>' + esc(r[1]) + '</b>' + (r[2] ? '<br><span class="v">' + esc(r[2]) + '</span>' : '');
@@ -908,7 +923,8 @@ function view4(){
     (m.length ? '<div><b>' + m.length + '</b><span class="sub">no enviados</span></div>' : '') + ((rec.none || []).length ? '<div><b>' + rec.none.length + '</b><span class="sub">sin existencias</span></div>' : '') + '</div>' +
     '<p class="note ok">El stock de este programa ya está actualizado: salió de ' + esc(alias(rec.orig)) + ' y entró a ' + esc(alias(rec.dest)) + '.</p>' +
     (s.length ? '<div class="row"><button class="btn primary" data-dl="csv" data-at="' + esc(rec.at) + '">Descargar import_transfer_order.csv</button>' + (rec.ctrl ? '<a class="btn" href="' + esc(rec.ctrl) + '" target="_blank" rel="noopener">Abrir control en Drive</a>' : '<button class="btn" data-dl="xlsx" data-at="' + esc(rec.at) + '">Descargar control (.xlsx)</button>') + '</div>' +
-    '<p class="sub">El CSV se importa en Loyverse como orden de transferencia.' + (rec.ctrl ? ' El control ya está en la carpeta de Drive, con casillas para marcar al recibir la caja.' : (lvOn() ? ' El control se crea en Drive en cuanto se guarden los datos; mientras tanto puedes descargarlo.' : ' El archivo de control se sube a Drive y se abre con Hojas de cálculo.')) + (lvOn() ? ' Recibe la transferencia en Loyverse antes de volver a traer el stock, o esta transferencia no se verá reflejada.' : '') + '</p>' : '<p class="note warn">No quedó ningún artículo en la caja, no hay nada que exportar.</p>') +
+    '<p class="sub">El CSV se importa en Loyverse como orden de transferencia.' + (rec.ctrl ? ' El control ya está en la carpeta de Drive, con casillas para marcar al recibir la caja.' : (lvOn() ? ' El control se crea en Drive en cuanto se guarden los datos; mientras tanto puedes descargarlo.' : ' El archivo de control se sube a Drive y se abre con Hojas de cálculo.')) + (false ? '.' : '') + '</p>' : '<p class="note warn">No quedó ningún artículo en la caja, no hay nada que exportar.</p>') +
+    impBox(rec) +
     (m.length ? '<details open><summary>No enviados</summary><div class="tablebox"><table><thead><tr><th>Referencia</th><th>Artículo</th><th class="num">Previstos</th><th>Comentario</th></tr></thead><tbody>' +
     m.map(r => '<tr><td class="mono">' + esc(r[0]) + '</td><td>' + art(r) + '</td><td class="num">' + r[3] + '</td><td>' + esc(r[4]) + '</td></tr>').join('') + '</tbody></table></div></details>' : '') +
     (() => { const full = s.length && s.every(r => r[5] != null), chg = (before, after, d) => before + ' → <b>' + after + '</b> <span class="pill ' + (d > 0 ? 'ok' : 'warn') + '">' + (d > 0 ? '+' : '−') + Math.abs(d) + '</span>';
@@ -1355,6 +1371,8 @@ document.addEventListener('click', e => {
   if (ad){ addLine(ad.dataset.add); return; }
   const go = e.target.closest('[data-go]');
   if (go){ if (!S.applied){ S.step = +go.dataset.go; save(); render(); } return; }
+  const im = e.target.closest('[data-imp]');
+  if (im){ const h = S.history.find(x => x.at === im.dataset.at); if (h){ h.imp = im.dataset.imp === '1' ? new Date().toISOString() : false; queue({op:'markImp', at:h.at, v:im.dataset.imp === '1'}); saveLocal(); if (syncUrl()){ saveMeta(); schedule(300); } render(); viewSync(); say(h.imp ? 'Marcada como importada en Loyverse.' : 'Vuelve a figurar como pendiente de importar.', 'ok'); } return; }
   const dl = e.target.closest('[data-dl]');
   if (dl){ const rec = S.history.find(h => h.at === dl.dataset.at); if (rec) download(rec, dl.dataset.dl); return; }
   const b = e.target.closest('[data-act]'); if (!b) return;
